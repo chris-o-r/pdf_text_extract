@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug pdf_diff",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=pdf_diff",
+                    "--package=pdf_diff"
+                ],
+                "filter": {
+                    "name": "pdf_diff",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--pdf",
+                "samples/1281082.pdf",
+              
+            ],
+            "cwd": "${workspaceFolder}",
+            "sourceLanguages": [
+                "rust"
+            ]
+        }
+    ]
+}
