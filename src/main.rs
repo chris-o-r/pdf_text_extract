@@ -4,7 +4,8 @@ use clap::{Parser, command};
 use image::GenericImageView;
 use lib::{
     image_utils::save_images,
-    pdf::{PdfError, PdfPageText, create_pdfium},
+    models::{ChunkingStrategy, PdfPageText},
+    pdf::{PdfError, create_pdfium},
 };
 
 #[derive(Parser)]
@@ -16,6 +17,14 @@ struct Args {
     #[arg(short = 'p', long = "pdf", help = "Path to the PDF file")]
     pdf: String,
 
+    #[arg(
+        short = 'c',
+        default_value = "paragraph",
+        long = "chunking",
+        help = "Chunking strategy for text extraction"
+    )]
+    chunking_strategy: ChunkingStrategy,
+
     /// Output directory for diff images
     #[arg(
         short = 'd',
@@ -25,13 +34,21 @@ struct Args {
     )]
     debug: bool,
 
-    /// DPI for rendering (higher = better quality, slower processing)
-    #[arg(long = "dpi", default_value = "300", help = "DPI for PDF rendering")]
-    dpi: f32,
+    #[arg(
+        short = 'b',
+        long = "benchmark",
+        default_value = "false",
+        help = "create debug output with bounding boxes"
+    )]
+    benchmark: bool,
 
-    /// Verbose output
-    #[arg(short = 'v', long = "verbose", help = "Enable verbose output")]
-    verbose: bool,
+    #[arg(
+        short = 'o',
+        long = "output",
+        default_value = "false",
+        help = "save output as json"
+    )]
+    output: bool,
 }
 
 fn main() {
@@ -53,15 +70,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    if args.verbose {
-        println!("Creating PDFium instance...");
-    }
     if args.debug {
         match create_debug_output(
             &pdfium,
             path_pdf,
             Path::new("output").join("bbox_output.pdf").as_path(),
-            args.dpi,
+            300.0,
         ) {
             Ok(()) => println!("Successfully created bounding box images"),
             Err(e) => {
@@ -71,54 +85,50 @@ fn main() {
         }
     }
 
-    print!("Bench mark");
-    let mut total_pages = 0;
-    let start = std::time::Instant::now();
-    let folder_path = Path::new("/Users/chris/code/pdf_text_extract/samples");
-    let pdf_diles = std::fs::read_dir(folder_path).unwrap();
-    for pdf_file in pdf_diles {
-        let pdf_path = pdf_file.unwrap().path();
-        if pdf_path.extension().unwrap_or_default() == "pdf" {
-            let start = std::time::Instant::now();
-            let pdf = match lib::pdf::load_pdf_document(&pdfium, &pdf_path) {
-                Ok(doc) => doc,
-                Err(e) => {
-                    eprintln!("Error loading PDF document {:?}: {}", pdf_path, e);
-                    continue;
-                }
-            };
-            for (index, page) in pdf.pages().iter().enumerate() {
-                let bbox = lib::pdf::get_text_bounding_box_from_page(&page, index);
-                let paragrpahs = match bbox {
-                    Ok(bbox) => lib::chunker::reduce_bbox_to_paragraphs(&bbox),
-                    Err(e) => {
-                        eprintln!(
-                            "Error extracting bounding boxes from page {}: {}",
-                            index + 1,
-                            e
-                        );
-                        continue;
-                    }
-                };
-                total_pages += 1;
-            }
+    let start_time = std::time::Instant::now();
 
-            // let _ = create_debug_output(&pdfium, &pdf_path, Path::new("output"), args.dpi);
-            let duration = start.elapsed();
-            println!(
-                "Processed {:?} in: {:?}",
-                pdf_path.file_name().unwrap(),
-                duration
-            );
+    let pdf = match lib::pdf::load_pdf_document(&pdfium, path_pdf) {
+        Ok(doc) => doc,
+        Err(e) => {
+            eprintln!("Error loading PDF document: {}", e);
+            std::process::exit(1);
         }
+    };
+    let mut bboxes = match lib::pdf::get_bounding_box_for_pdf(&pdf) {
+        Ok(bbox) => bbox,
+        Err(e) => {
+            eprintln!("Error extracting bounding boxes from PDF: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if args.chunking_strategy == ChunkingStrategy::Paragraph {
+        bboxes = lib::chunker::reduce_bbox_to_paragraphs(&bboxes);
     }
-    let duration = start.elapsed();
-    println!("Total time elapsed: {:?}", duration);
-    println!("Total pages processed: {}", total_pages);
-    print!(
-        "Pages per second: {} ms",
-        total_pages as f64 / duration.as_secs_f64()
-    );
+
+    if args.output {
+        let json_output = serde_json::to_string_pretty(&bboxes).unwrap();
+        let output_path = Path::new("output").join("output.json");
+        std::fs::create_dir_all(output_path.parent().unwrap()).unwrap();
+        std::fs::write(&output_path, json_output).unwrap();
+        println!("Saved output to {:?}", output_path);
+    } else {
+        let json_output = serde_json::to_string_pretty(&bboxes).unwrap();
+        println!("{}", json_output);
+    }
+
+    if args.benchmark {
+        let total_duration = start_time.elapsed();
+        println!("Total processing time: {:?}", total_duration);
+
+        let total_pages = pdf.pages().len();
+        println!("Total pages processed: {}", total_pages);
+        println!(
+            "Times to process per page: {:.2} ms",
+            total_duration.as_millis() as f64 / total_pages as f64
+        );
+        println!("Paragraphs created {}", bboxes.len());
+    }
 }
 
 fn create_debug_output(

@@ -3,15 +3,15 @@ name = "pdf_diff"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies] 
-diff_img = { git = "https://github.com/chris-o-r/diff-img" } 
+[dependencies]
 image = "0.25.6"
 anyhow = "1.0.99"
 pdfium-render = "0.8.35"
 clap = { version = "4.5.48", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 
 
 [lib]
 name = "lib"
 path = "src/lib/mod.rs"
- 

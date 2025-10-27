@@ -6,6 +6,8 @@ use pdfium_render::prelude::{PdfDocument, PdfRenderConfig, Pdfium};
 use std::error::Error;
 use std::fmt;
 
+use crate::models::{BoundingBox, PdfPageText};
+
 #[derive(Debug)]
 pub struct PdfError {
     pub message: String,
@@ -18,51 +20,6 @@ impl fmt::Display for PdfError {
 }
 
 impl Error for PdfError {}
-
-#[derive(Debug, Clone)]
-pub struct PdfPageText {
-    pub page_index: usize,
-    pub text: String,
-    pub bounding_box: BoundingBox,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct BoundingBox {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-impl BoundingBox {
-    fn new(x: f32, y: f32, width: f32, height: f32) -> BoundingBox {
-        BoundingBox {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-}
-
-impl fmt::Display for BoundingBox {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "BoundingBox({}, {}, {}, {})",
-            self.x, self.y, self.width, self.height
-        )
-    }
-}
-
-impl fmt::Display for PdfPageText {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Page {}: '{}' at {}",
-            self.page_index, self.text, self.bounding_box
-        )
-    }
-}
 
 pub fn create_pdfium() -> Result<Pdfium, PdfError> {
     let pdfium = Pdfium::new(
@@ -122,19 +79,14 @@ fn get_image_from_page(
         .as_image())
 }
 
-pub fn get_bouding_box_for_pdf(document: &PdfDocument) -> Result<Vec<PdfPageText>, PdfError> {
-    let mut all_text = Vec::<PdfPageText>::new();
-    for index in 0..document.pages().len() {
-        let page = document.pages().get(index).map_err(|e| PdfError {
-            message: format!("Failed to get page {}: {:?}", index, e),
-        })?;
-        let page_text =
-            get_text_bounding_box_from_page(&page, index.into()).map_err(|e| PdfError {
-                message: format!("Failed to extract text from page {}: {:?}", index, e),
-            })?;
-        all_text.extend(page_text);
-    }
-    Ok(all_text)
+pub fn get_bounding_box_for_pdf(document: &PdfDocument) -> Result<Vec<PdfPageText>, PdfError> {
+    document
+        .pages()
+        .iter()
+        .enumerate()
+        .map(|(index, page)| get_text_bounding_box_from_page(&page, index.into()))
+        .collect::<Result<Vec<Vec<PdfPageText>>, PdfError>>()
+        .map(|vec_of_vecs| vec_of_vecs.into_iter().flatten().collect())
 }
 
 pub fn get_text_bounding_box_from_page(
@@ -195,13 +147,13 @@ mod tests {
         );
 
         let doc = result.unwrap();
-        assert!(doc.pages().len() > 0, "Fdocument should have pages");
+        assert!(doc.pages().len() > 0, "document should have pages");
     }
 
     #[test]
     fn test_load_pdf_documents_nonexistent_file() {
-        let pdfium = create_pdfium().expect("Failed to create Pdfium instance");
-        let new_path = Path::new("./samples/new.pdf");
+        let pdfium = create_pdfium().unwrap();
+        let new_path = Path::new("./samples/does_not_exist.pdf");
 
         let result = load_pdf_document(&pdfium, new_path);
         assert!(result.is_err(), "Should fail for nonexistent file");
