@@ -25,6 +25,14 @@ struct Args {
     )]
     chunking_strategy: ChunkingStrategy,
 
+    #[arg(
+        long = "percentile",
+        default_value = "85.0",
+        help = "The percentile for paragraph threshold calculation, used when chunking strategy is paragraph",
+        required_if_eq("chunking_strategy", "Paragraph")
+    )]
+    percentile: f32,
+
     /// Output directory for diff images
     #[arg(
         short = 'd',
@@ -76,6 +84,7 @@ fn main() {
             path_pdf,
             Path::new("output").join("bbox_output.pdf").as_path(),
             300.0,
+            args.percentile,
         ) {
             Ok(()) => println!("Successfully created bounding box images"),
             Err(e) => {
@@ -103,7 +112,7 @@ fn main() {
     };
 
     if args.chunking_strategy == ChunkingStrategy::Paragraph {
-        bboxes = lib::chunker::reduce_bbox_to_paragraphs(&bboxes);
+        bboxes = lib::chunker::reduce_bbox_to_paragraphs(&bboxes, args.percentile);
     }
 
     if args.output {
@@ -136,6 +145,7 @@ fn create_debug_output(
     pdf_path: &Path,
     output_path: &Path,
     dpi: f32,
+    percentile: f32,
 ) -> Result<(), PdfError> {
     // Scale from PDF points (72 DPI) to target DPI
     let scale = dpi / 72.0;
@@ -149,45 +159,20 @@ fn create_debug_output(
 
     let page_images = lib::pdf::create_images_from_pdf(&document, dpi)?;
 
-    let text_with_bboxes: Vec<Vec<PdfPageText>> = document
-        .pages()
-        .iter()
-        .enumerate()
-        .map(|(i, page)| {
-            lib::pdf::get_text_bounding_box_from_page(&page, i.into())
-                .unwrap_or_else(|_| Vec::new())
-        })
-        .collect();
+    let text_with_bboxes = lib::pdf::get_bounding_box_for_pdf(&document)?;
     let mut final_images = Vec::new();
 
     for i in 0..page_images.len() {
-        println!("Processing page {} of {}", i + 1, page_images.len());
-
         let mut image = page_images[i].clone();
-        let page_infos = &text_with_bboxes[i];
-        let paragraphs = lib::chunker::reduce_bbox_to_paragraphs(page_infos);
+        let page_infos = text_with_bboxes
+            .iter()
+            .filter(|bbox| bbox.page_index == i)
+            .map(|item| item.clone())
+            .collect::<Vec<PdfPageText>>();
+        let paragraphs = lib::chunker::reduce_bbox_to_paragraphs(&page_infos, percentile);
 
-        let (img_width, img_height) = image.dimensions();
-
-        println!("  Image dimensions: {}x{}", img_width, img_height);
-        println!(
-            "  Found {} text segments on page {}",
-            page_infos.len(),
-            i + 1
-        );
-
-        for (j, page_info) in paragraphs.iter().enumerate() {
+        for (_j, page_info) in paragraphs.iter().enumerate() {
             let bbox = &page_info.bounding_box;
-
-            // Debug: show original PDF coordinates
-            println!(
-                "    Text '{}': PDF coords ({:.1}, {:.1}, {:.1}, {:.1})",
-                page_info.text.chars().take(10).collect::<String>(),
-                bbox.x,
-                bbox.y,
-                bbox.width,
-                bbox.height
-            );
 
             // Scale to image coordinates
             let x = (bbox.x * scale) as u32;
@@ -195,15 +180,11 @@ fn create_debug_output(
             let w = (bbox.width * scale) as u32;
             let h = (bbox.height * scale) as u32;
 
-            println!("    Drawing rect {}: ({}, {}, {}, {})", j + 1, x, y, w, h);
-
             // Bounds check before drawing
             let (img_width, img_height) = image.dimensions();
             if x < img_width && y < img_height && w > 0 && h > 0 {
                 let rect = lib::image_utils::draw_rect(&image, (x, y, w, h), false);
                 image = rect;
-            } else {
-                println!("    Skipping invalid rectangle bounds");
             }
         }
 

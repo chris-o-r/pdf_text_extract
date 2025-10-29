@@ -1,241 +1,200 @@
-# PDF Diff Tool
+# PDF Text Extract
 
-A Rust-based tool for comparing PDF documents by converting them to images and generating visual diffs to highlight changes between documents.
+A high-performance Rust tool for extracting text from PDF documents with precise bounding box information. This tool can analyze PDF documents, extract text with spatial coordinates, group text into paragraphs, and generate visual debugging output.
 
 ## Features
 
-- **PDF to Image Conversion**: Converts PDF pages to high-resolution images using PDFium
-- **Visual Diff Generation**: Creates difference images highlighting changes between PDF versions
-- **Smart Cropping**: Automatically crops images to content areas, removing whitespace
-- **Batch Processing**: Processes multiple pages and generates individual diff images
-- **High Quality Output**: Configurable DPI settings for crisp, detailed output images
-
-## Prerequisites
-
-- Rust (latest stable version)
-- PDFium library for macOS ARM64 (included in `pdfium-mac-arm64/`)
+- **Text Extraction**: Extract text from PDF documents with precise positioning information
+- **Bounding Box Detection**: Get exact coordinates for each text element
+- **Flexible Chunking**: Choose between paragraph-level or line-level text grouping
+- **Debug Visualization**: Generate images with bounding boxes overlaid for debugging
+- **JSON Output**: Export structured text data as JSON
+- **Performance Benchmarking**: Built-in timing and performance metrics
 
 ## Installation
 
-1. Clone the repository:
+### Prerequisites
+
+- Rust 1.75+ (2024 edition)
+- PDFium binaries (see setup instructions below)
+
+### PDFium Binary Setup
+
+This project requires PDFium binaries to function. You need to:
+
+1. Download the appropriate PDFium binaries for your platform from [PDFium releases](https://github.com/paulocoutinhox/pdfium-lib/releases)
+2. Extract the binaries to a `pdfium-<platform>` directory in the project root
+3. Ensure the directory structure matches:
+   ```
+   pdfium-<platform>/
+   ├── include/        # Header files
+   ├── lib/           # Library files
+   └── LICENSE        # PDFium license
+   ```
+
+**Note**: The current code expects `pdfium-mac-arm64/` for macOS ARM64. Adjust the path in your code for other platforms.
+
+### Building from Source
+
 ```bash
 git clone <your-repo-url>
-cd pdf_diff
-```
-
-2. Build the project:
-```bash
+cd pdf_text_extract
+# Set up PDFium binaries (see above)
 cargo build --release
 ```
 
 ## Usage
 
-### Command Line Usage
+### Basic Text Extraction
+
+Extract text and print to stdout:
+```bash
+cargo run -- --pdf samples/document.pdf
+```
+
+### Save Output to JSON
+
+Extract text and save to `output/output.json`:
+```bash
+cargo run -- --pdf samples/document.pdf --output
+```
+
+### Debug Mode with Bounding Boxes
+
+Generate visual debugging images with bounding boxes:
+```bash
+cargo run -- --pdf samples/document.pdf --debug
+```
+
+### Chunking Strategies
+
+Choose how text is grouped (paragraph or line level):
+```bash
+# Group text into paragraphs (default)
+cargo run -- --pdf samples/document.pdf --chunking paragraph
+
+# Extract individual lines
+cargo run -- --pdf samples/document.pdf --chunking line
+```
+
+### Benchmark Performance
+
+Run with performance timing:
+```bash
+cargo run -- --pdf samples/document.pdf --benchmark
+```
+
+### Combined Options
 
 ```bash
-# Basic usage
-cargo run -- --old path/to/old.pdf --new path/to/new.pdf
-
-# With custom output directory
-cargo run -- --old old.pdf --new new.pdf --output-dir my_output
-
-# High quality rendering
-cargo run -- --old old.pdf --new new.pdf --dpi 600
-
-# More sensitive diff detection
-cargo run -- --old old.pdf --new new.pdf --sensitivity 0.05
-
-# Verbose output
-cargo run -- --old old.pdf --new new.pdf --verbose
-
-# All options combined
-cargo run -- --old old.pdf --new new.pdf --output-dir results --dpi 600 --sensitivity 0.08 --verbose
-
-# Or if you've built a release binary:
-./target/release/pdf_diff --old old.pdf --new new.pdf
+cargo run -- --pdf samples/document.pdf --output --debug --benchmark --chunking paragraph
 ```
 
-### Command Line Options
+## Command Line Options
 
-- `--old, -o`: Path to the old PDF file (required)
-- `--new, -n`: Path to the new PDF file (required)
-- `--output-dir, -d`: Directory to save diff images (default: "output")
-- `--dpi`: DPI for PDF rendering (default: 300, higher = better quality)
-- `--sensitivity`: Diff sensitivity threshold 0.0-1.0 (default: 0.12, lower = more sensitive)
-- `--verbose, -v`: Enable verbose output
-- `--help, -h`: Show help message
+| Option | Short | Description | Default |
+|--------|--------|-------------|---------|
+| `--pdf` | `-p` | Path to the PDF file | Required |
+| `--chunking` | `-c` | Text chunking strategy (`paragraph` or `line`) | `paragraph` |
+| `--output` | `-o` | Save output as JSON to `output/output.json` | `false` |
+| `--debug` | `-d` | Generate debug images with bounding boxes | `false` |
+| `--benchmark` | `-b` | Show performance timing information | `false` |
 
-### Legacy Usage (Hardcoded Paths)
+## Output Format
 
-Place your PDF files in the `samples/` directory and update the file paths in `src/main.rs`:
+The tool outputs structured JSON with the following format:
 
-```rust
-let path_old = path::Path::new("./samples/sample_3.pdf");
-let path_new = path::Path::new("./samples/sample_4.pdf");
+```json
+[
+  {
+    "page_index": 0,
+    "text": "This is a paragraph of text extracted from the PDF.",
+    "bounding_box": {
+      "x": 72.0,
+      "y": 100.5,
+      "width": 450.2,
+      "height": 14.4
+    }
+  }
+]
 ```
 
-Run the tool:
-```bash
-cargo run
-```
+### Field Descriptions
 
-### Library Usage
+- `page_index`: Zero-based page number
+- `text`: The extracted text content (grouped into paragraphs)
+- `bounding_box`: Spatial coordinates in PDF points (72 DPI)
+  - `x`, `y`: Top-left corner coordinates
+  - `width`, `height`: Dimensions of the text block
 
-You can also use this as a library in your own Rust projects:
+## Architecture
 
-```rust
-use pdf_diff::pdf::{create_pdfium, load_pdf_documents, create_images_from_pdf};
-use pdf_diff::image_utils::{diff_images, save_images};
-
-// Create PDFium instance
-let pdfium = create_pdfium()?;
-
-// Load PDF documents
-let (old_doc, new_doc) = load_pdf_documents(&pdfium, old_path, new_path)?;
-
-// Convert to images with custom DPI
-let images = create_images_from_pdf(&old_doc, &new_doc, 600.0)?;
-
-// Generate diffs with custom sensitivity
-let diff_images = diff_images(images, 0.08)?;
-
-// Save results
-save_images(diff_images, "output")?;
-```
-
-## Configuration
-
-### Command Line Configuration (Recommended)
-
-All settings can be configured via command-line arguments:
-
-- `--dpi 600`: Higher DPI for better quality (default: 300)
-- `--sensitivity 0.05`: Lower values for more sensitive diff detection (default: 0.12)
-- `--output-dir custom_output`: Change output directory (default: "output")
-
-### Code Configuration (For Library Use)
-
-When using as a library, you can configure these settings programmatically:
-
-```rust
-// Custom DPI for image quality
-let images = create_images_from_pdf(&old_doc, &new_doc, 600.0)?;
-
-// Custom sensitivity for diff detection
-let diff_images = diff_images(images, 0.05)?;
-```
-
-### Advanced Configuration
-
-For advanced users who want to modify the source code:
-
-#### Cropping Tolerance
-
-Adjust the white pixel tolerance in `src/lib/image_utils.rs`:
-
-```rust
-let tolerance = 10u8; // Higher values = more aggressive cropping
-```
-
-## Project Structure
+The project is structured as follows:
 
 ```
-pdf_diff/
-├── src/
-│   ├── main.rs              # Main application entry point
-│   └── lib/
-│       ├── mod.rs           # Library module declarations
-│       ├── pdf.rs           # PDF processing and rendering
-│       └── image_utils.rs   # Image manipulation and diff utilities
-├── samples/                 # Sample PDF files for testing
-├── output/                  # Generated diff images
-├── pdfium-mac-arm64/        # PDFium library files
-├── Cargo.toml              # Rust dependencies and configuration
-└── README.md               # This file
+src/
+├── main.rs              # CLI interface and main application logic
+└── lib/
+    ├── mod.rs           # Library module declarations
+    ├── models.rs        # Data structures (PdfPageText, BoundingBox)
+    ├── pdf.rs           # PDF processing and text extraction
+    ├── chunker.rs       # Text grouping and paragraph detection
+    └── image_utils.rs   # Image processing and debug visualization
 ```
+
+### Key Components
+
+- **PDF Processing**: Uses PDFium for robust PDF parsing and text extraction
+- **Text Chunking**: Configurable algorithms to group text elements (paragraph or line level)
+- **Bounding Box Calculation**: Precise spatial coordinate calculation for text positioning
+- **Debug Visualization**: Overlay bounding boxes on rendered PDF pages for verification
 
 ## Dependencies
 
-- `clap` - Command-line argument parsing
-- `pdfium-render` - PDF rendering using PDFium
-- `image` - Image processing and manipulation
-- `diff_img` - Image diffing algorithms
-- `anyhow` - Error handling
+- `pdfium-render`: PDF processing and rendering
+- `image`: Image manipulation for debug output
+- `clap`: Command-line argument parsing
+- `serde`: JSON serialization/deserialization
+- `anyhow`: Error handling
 
-## Testing
+## Performance
 
-Run the test suite:
+The tool includes built-in benchmarking. Typical performance on modern hardware:
 
-```bash
-cargo test
-```
-
-The tests cover:
-- PDF loading and validation
-- Image rendering from PDF pages
-- Image cropping and manipulation
-- Diff generation
-- File I/O operations
-
-## Output
-
-The tool generates:
-
-1. **Diff Images**: Visual representations of changes between PDF versions
-2. **Cropped Content**: Images are automatically cropped to remove excess whitespace
-3. **High Resolution**: Images rendered at configurable DPI for quality output
-4. **PNG Format**: Lossless compression for accurate diff visualization
-
-## Error Handling
-
-The tool provides detailed error messages for common issues:
-- Missing PDF files
-- Corrupted PDF documents
-- PDFium library loading issues
-- File permission problems
-- Invalid image dimensions
-
-## Limitations
-
-- Currently optimized for macOS ARM64 architecture
-- Requires PDFium library to be present
-- Memory usage scales with PDF size and DPI settings
-- Processing time increases with higher DPI and larger documents
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details.
-
-## Troubleshooting
-
-### PDFium Library Issues
-
-If you encounter `libpdfium.dylib` loading errors:
-
-1. Ensure the library path is correct in your code
-2. Verify the library exists at `./pdfium-mac-arm64/lib/libpdfium.dylib`
-3. Check that you're using the correct architecture version
-
-### Low Quality Output
-
-- Increase the DPI setting in the configuration
-- Ensure source PDFs are vector-based, not raster images
-- Check that cropping isn't removing important content
-
-### Performance Issues
-
-- Reduce DPI for faster processing
-- Process PDFs in smaller batches
-- Consider using release builds (`cargo build --release`)
+- **Processing Speed**: ~50-200ms per page (depends on text density and chunking strategy)
+- **Memory Usage**: Scales with document size and chunking strategy
+- **Output**: Processing time, pages per second, and text chunk count metrics
 
 ## Examples
 
-See the `samples/` directory for example PDF files that demonstrate the tool's capabilities.
+The `samples/` directory contains example PDF files for testing:
+
+```bash
+# Process a sample document
+cargo run -- --pdf samples/rpa0038.pdf --output --benchmark
+
+# Generate debug visualization
+cargo run -- --pdf samples/1281082.pdf --debug --chunking paragraph
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **File Not Found**: Ensure the PDF path is correct and the file exists
+2. **PDFium Initialization Failed**: Check that PDFium binaries are properly included
+3. **Memory Issues**: Try reducing DPI for large documents
+4. **Invalid Rectangles**: Some PDFs may have malformed text coordinates
+
+### Debug Mode
+
+Use `--debug` to generate visual output that shows:
+- Extracted text bounding boxes as colored rectangles
+- Page-by-page processing information
+- Coordinate transformation details
+
+
+## Acknowledgments
+
+- Built with [PDFium](https://pdfium.googlesource.com/pdfium/) for reliable PDF processing
+- Uses Rust's ecosystem for high-performance text processing

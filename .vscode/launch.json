@@ -19,6 +19,7 @@
             "args": [
                 "--pdf",
                 "samples/1281082.pdf",
+                "--debug",
               
             ],
             "cwd": "${workspaceFolder}",

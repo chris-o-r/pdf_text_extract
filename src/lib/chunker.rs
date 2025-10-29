@@ -1,9 +1,9 @@
 use crate::models::PdfPageText;
 
-pub fn reduce_bbox_to_paragraphs(bbox: &Vec<PdfPageText>) -> Vec<PdfPageText> {
+pub fn reduce_bbox_to_paragraphs(bbox: &Vec<PdfPageText>, percentile: f32) -> Vec<PdfPageText> {
     let mut result: Vec<PdfPageText> = Vec::new();
     let mut current_paragraph: Option<PdfPageText> = None;
-    let paragraph_threshold = calculate_paragraph_threshold(bbox, 85.0);
+    let paragraph_threshold = calculate_paragraph_threshold(bbox, percentile);
 
     for segment in bbox.clone() {
         if current_paragraph.is_none() {
@@ -11,21 +11,15 @@ pub fn reduce_bbox_to_paragraphs(bbox: &Vec<PdfPageText>) -> Vec<PdfPageText> {
         } else {
             let current_paragraph_y = current_paragraph.as_ref().unwrap().bounding_box.y;
 
-            if segment.bounding_box.y < current_paragraph_y {
-                result.push(current_paragraph.unwrap());
-                current_paragraph = Some(segment);
-            } else {
-                let y_diff = (segment.bounding_box.y
-                    - (current_paragraph_y
-                        + current_paragraph.as_ref().unwrap().bounding_box.height))
-                    .abs();
+            let y_diff = (segment.bounding_box.y
+                - (current_paragraph_y + current_paragraph.as_ref().unwrap().bounding_box.height))
+                .abs();
 
-                if y_diff <= paragraph_threshold {
-                    current_paragraph = Some(current_paragraph.unwrap().combine(&segment));
-                } else {
-                    result.push(current_paragraph.unwrap());
-                    current_paragraph = None
-                }
+            if y_diff <= paragraph_threshold {
+                current_paragraph = Some(current_paragraph.unwrap().combine(&segment));
+            } else {
+                result.push(current_paragraph.clone().unwrap());
+                current_paragraph = Some(segment);
             }
         }
     }
@@ -92,7 +86,7 @@ mod tests {
             },
         ];
 
-        let paragraphs = reduce_bbox_to_paragraphs(&bboxes);
+        let paragraphs = reduce_bbox_to_paragraphs(&bboxes, 85.0);
         let reduced_paragraph = paragraphs.first().unwrap();
         assert_eq!(reduced_paragraph.text, "Hello World");
         assert_eq!(paragraphs.len(), 1);
