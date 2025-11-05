@@ -3,27 +3,34 @@ use crate::models::PdfPageText;
 pub fn reduce_bbox_to_paragraphs(bbox: &[PdfPageText], percentile: f32) -> Vec<PdfPageText> {
     let mut result: Vec<PdfPageText> = Vec::new();
     let mut current_paragraph: Option<PdfPageText> = None;
+
+    // Calculate the threshold distance for grouping segments into paragraphs
     let paragraph_threshold = calculate_paragraph_threshold(bbox, percentile);
 
     for segment in bbox.iter().cloned() {
         if current_paragraph.is_none() {
+            // Start the first paragraph with the first segment
             current_paragraph = Some(segment);
         } else {
             let current_paragraph_y = current_paragraph.as_ref().unwrap().bounding_box.y;
 
+            // Calculate the vertical gap between the current paragraph and this segment
             let y_diff = (segment.bounding_box.y
                 - (current_paragraph_y + current_paragraph.as_ref().unwrap().bounding_box.height))
                 .abs();
 
             if y_diff <= paragraph_threshold {
+                // Gap is small enough - combine this segment with the current paragraph
                 current_paragraph = Some(current_paragraph.unwrap().combine(&segment));
             } else {
+                // Gap is too large - finish current paragraph and start a new one
                 result.push(current_paragraph.clone().unwrap());
                 current_paragraph = Some(segment);
             }
         }
     }
 
+    // Don't forget to add the final paragraph
     if let Some(paragraph) = current_paragraph {
         result.push(paragraph);
     }
