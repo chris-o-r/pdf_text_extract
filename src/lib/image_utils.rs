@@ -1,3 +1,8 @@
+use image::ImageFormat;
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::Path;
+
 use image::DynamicImage;
 
 pub fn save_images(
@@ -5,18 +10,15 @@ pub fn save_images(
     pdf_title: &str,
     output_dir: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use image::ImageFormat;
-    use std::fs::File;
-    use std::io::BufWriter;
-
-    std::fs::create_dir_all(output_dir)?;
+    let path = Path::new(output_dir).join(pdf_title);
+    std::fs::create_dir_all(&path)?;
 
     for (i, img) in images.iter().enumerate() {
-        let output_path = format!("{}/{}_{}.png", output_dir, pdf_title, i + 1);
+        let output_path = path.join(format!("{}_{}.png", pdf_title, i + 1));
         let file = File::create(&output_path)?;
         let w = BufWriter::new(file);
         img.write_to(&mut BufWriter::new(w), ImageFormat::Png)?;
-        println!("Saved diff image to {}", output_path);
+        println!("Saved diff image to {}", output_path.display());
     }
 
     Ok(())
@@ -40,6 +42,37 @@ pub fn draw_rect(
     }
 
     DynamicImage::ImageRgba8(img)
+}
+
+pub fn draw_rects(
+    image: &DynamicImage,
+    rects: &[(u32, u32, u32, u32)],
+    fill: bool,
+) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    let mut img = image.to_rgba8();
+    for (x, y, w, h) in rects {
+        for i in *x..(*x + *w) {
+            for j in *y..(*y + *h) {
+                if i >= img.width() || j >= img.height() {
+                    return Err(format!(
+                        "Rectangle ({}, {}, {}, {}) exceeds image bounds ({}, {})",
+                        x,
+                        y,
+                        w,
+                        h,
+                        img.width(),
+                        img.height()
+                    )
+                    .into());
+                }
+                if fill || i == *x || i == *x + *w - 1 || j == *y || j == *y + *h - 1 {
+                    img.put_pixel(i, j, image::Rgba([255, 0, 0, 255]));
+                }
+            }
+        }
+    }
+
+    Ok(DynamicImage::ImageRgba8(img))
 }
 
 #[cfg(test)]

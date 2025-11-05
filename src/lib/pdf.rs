@@ -84,7 +84,7 @@ pub fn get_bounding_box_for_pdf(document: &PdfDocument) -> Result<Vec<PdfPageTex
         .pages()
         .iter()
         .enumerate()
-        .map(|(index, page)| get_text_bounding_box_from_page(&page, index.into()))
+        .map(|(index, page)| get_text_bounding_box_from_page(&page, index))
         .collect::<Result<Vec<Vec<PdfPageText>>, PdfError>>()
         .map(|vec_of_vecs| vec_of_vecs.into_iter().flatten().collect())
 }

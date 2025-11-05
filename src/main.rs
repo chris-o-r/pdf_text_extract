@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use clap::{Parser, command};
-use image::GenericImageView;
 use lib::{
     image_utils::save_images,
     models::{ChunkingStrategy, PdfPageText},
@@ -82,7 +81,7 @@ fn main() {
         match create_debug_output(
             &pdfium,
             path_pdf,
-            Path::new("output").join("bbox_output.pdf").as_path(),
+            Path::new("output"),
             300.0,
             args.percentile,
         ) {
@@ -162,16 +161,21 @@ fn create_debug_output(
     let text_with_bboxes = lib::pdf::get_bounding_box_for_pdf(&document)?;
     let mut final_images = Vec::new();
 
-    for i in 0..page_images.len() {
-        let mut image = page_images[i].clone();
+    let name = pdf_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+
+    for (i, image) in page_images.iter().enumerate() {
+        let mut image = image.clone();
         let page_infos = text_with_bboxes
             .iter()
             .filter(|bbox| bbox.page_index == i)
-            .map(|item| item.clone())
+            .cloned()
             .collect::<Vec<PdfPageText>>();
         let paragraphs = lib::chunker::reduce_bbox_to_paragraphs(&page_infos, percentile);
 
-        for (_j, page_info) in paragraphs.iter().enumerate() {
+        for page_info in paragraphs.iter() {
             let bbox = &page_info.bounding_box;
 
             // Scale to image coordinates
@@ -181,21 +185,15 @@ fn create_debug_output(
             let h = (bbox.height * scale) as u32;
 
             // Bounds check before drawing
-            let (img_width, img_height) = image.dimensions();
-            if x < img_width && y < img_height && w > 0 && h > 0 {
-                let rect = lib::image_utils::draw_rect(&image, (x, y, w, h), false);
-                image = rect;
-            }
+            image = lib::image_utils::draw_rects(&image, &[(x, y, w, h)], false).unwrap();
         }
 
         final_images.push(image);
         println!("  Completed page {}", i + 1);
     }
 
-    save_images(final_images, "bbox_output", output_path.to_str().unwrap()).map_err(|e| {
-        PdfError {
-            message: format!("Failed to save images: {}", e),
-        }
+    save_images(final_images, name, output_path.to_str().unwrap()).map_err(|e| PdfError {
+        message: format!("Failed to save images: {}", e),
     })?;
 
     Ok(())

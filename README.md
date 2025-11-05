@@ -169,6 +169,11 @@ The tool includes built-in benchmarking. Typical performance on modern hardware:
 
 The `samples/` directory contains example PDF files for testing:
 
+![First page of pdf](samples/images/1281082_1.png "First Page")
+![First page of pdf](samples/images/1281082_2.png "First Page")
+![First page of pdf](samples/images/1281082_3.png "First Page")
+
+
 ```bash
 # Process a sample document
 cargo run -- --pdf samples/rpa0038.pdf --output --benchmark

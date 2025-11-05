@@ -1,11 +1,11 @@
 use crate::models::PdfPageText;
 
-pub fn reduce_bbox_to_paragraphs(bbox: &Vec<PdfPageText>, percentile: f32) -> Vec<PdfPageText> {
+pub fn reduce_bbox_to_paragraphs(bbox: &[PdfPageText], percentile: f32) -> Vec<PdfPageText> {
     let mut result: Vec<PdfPageText> = Vec::new();
     let mut current_paragraph: Option<PdfPageText> = None;
     let paragraph_threshold = calculate_paragraph_threshold(bbox, percentile);
 
-    for segment in bbox.clone() {
+    for segment in bbox.iter().cloned() {
         if current_paragraph.is_none() {
             current_paragraph = Some(segment);
         } else {
@@ -24,8 +24,8 @@ pub fn reduce_bbox_to_paragraphs(bbox: &Vec<PdfPageText>, percentile: f32) -> Ve
         }
     }
 
-    if current_paragraph.is_some() {
-        result.push(current_paragraph.unwrap());
+    if let Some(paragraph) = current_paragraph {
+        result.push(paragraph);
     }
     result
 }

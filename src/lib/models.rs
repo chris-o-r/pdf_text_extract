@@ -107,10 +107,10 @@ impl fmt::Display for ChunkingStrategy {
 
 impl PartialEq for ChunkingStrategy {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (ChunkingStrategy::Paragraph, ChunkingStrategy::Paragraph) => true,
-            (ChunkingStrategy::Line, ChunkingStrategy::Line) => true,
-            _ => false,
-        }
+        matches!(
+            (self, other),
+            (ChunkingStrategy::Paragraph, ChunkingStrategy::Paragraph)
+                | (ChunkingStrategy::Line, ChunkingStrategy::Line)
+        )
     }
 }
