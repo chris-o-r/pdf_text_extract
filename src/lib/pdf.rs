@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_load_pdf_documents() {
         let pdfium = create_pdfium().expect("Failed to create Pdfium instance");
-        let path = Path::new("./samples/old.pdf");
+        let path = Path::new("./samples/1281082.pdf");
 
         let result = load_pdf_document(&pdfium, path);
         assert!(
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_create_images_from_pdf() {
         let pdfium = create_pdfium().expect("Failed to create Pdfium instance");
-        let path = Path::new("./samples/old.pdf");
+        let path = Path::new("./samples/1281082.pdf");
 
         let doc = load_pdf_document(&pdfium, path).unwrap();
 
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_get_image_from_page() {
         let pdfium = create_pdfium().expect("Failed to create Pdfium instance");
-        let pdf_path = Path::new("./samples/old.pdf");
+        let pdf_path = Path::new("./samples/1281082.pdf");
 
         let doc = load_pdf_document(&pdfium, pdf_path).expect("Failed to load PDF document");
 
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn test_get_text_from_page() {
         let pdfium = create_pdfium().expect("Failed to create Pdfium instance");
-        let pdf_path = Path::new("./samples/old.pdf");
+        let pdf_path = Path::new("./samples/1281082.pdf");
 
         let doc = load_pdf_document(&pdfium, pdf_path).expect("Failed to load PDF document");
 

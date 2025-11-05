@@ -106,8 +106,8 @@ mod tests {
         assert!(result.is_ok(), "save_images should succeed");
 
         // Check that files were created
-        assert!(Path::new(&format!("{}/{}_1.png", test_dir, pdf_title)).exists());
-        assert!(Path::new(&format!("{}/{}_2.png", test_dir, pdf_title)).exists());
+        assert!(Path::new(&format!("{}/{}/{}_1.png", test_dir, pdf_title, pdf_title)).exists());
+        assert!(Path::new(&format!("{}/{}/{}_2.png", test_dir, pdf_title, pdf_title)).exists());
 
         // Clean up
         fs::remove_dir_all(test_dir).ok();
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_save_images_creates_directory() {
         let test_dir = "test_output_new_dir/subdir";
-        let img = create_solid_color_image(5, 5, Rgba([100, 100, 100, 255]));
+        let img: DynamicImage = create_solid_color_image(5, 5, Rgba([100, 100, 100, 255]));
         let images = vec![img];
 
         let pdf_title = "test_pdf";
@@ -155,7 +155,7 @@ mod tests {
             "save_images should create nested directories"
         );
 
-        assert!(Path::new(&format!("{}/{}_1.png", test_dir, pdf_title)).exists());
+        assert!(Path::new(&format!("{}/{}/{}_1.png", test_dir, pdf_title, pdf_title)).exists());
 
         // Clean up
         fs::remove_dir_all("test_output_new_dir").ok();
