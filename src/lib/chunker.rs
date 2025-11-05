@@ -43,10 +43,10 @@ fn calculate_paragraph_threshold(bbox: &[PdfPageText], percentile: f32) -> f32 {
     unique_y_axis.dedup();
 
     // Calculate the differences between consecutive y-axis values
-    let mut y_diffs: Vec<f32> = unique_y_axis
+    let mut y_diffs = unique_y_axis
         .windows(2)
         .map(|window| window[1] - window[0])
-        .collect();
+        .collect::<Vec<f32>>();
 
     if y_diffs.is_empty() {
         return 0.0; // Return 0 if there are no differences to calculate
