@@ -47,6 +47,7 @@ pub fn draw_rect(
 pub fn draw_rects(
     image: &DynamicImage,
     rects: &[(u32, u32, u32, u32)],
+    color: image::Rgba<u8>,
     fill: bool,
 ) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     let mut img = image.to_rgba8();
@@ -66,7 +67,7 @@ pub fn draw_rects(
                     .into());
                 }
                 if fill || i == *x || i == *x + *w - 1 || j == *y || j == *y + *h - 1 {
-                    img.put_pixel(i, j, image::Rgba([255, 0, 0, 255]));
+                    img.put_pixel(i, j, color);
                 }
             }
         }
