@@ -144,7 +144,7 @@ mod tests {
             },
         ];
 
-        let paragraphs = reduce_bbox_to_paragraphs(&bboxes, 85.0);
+        let paragraphs = reduce_bbox_to_paragraphs(&bboxes, 80.0);
         let reduced_paragraph = paragraphs.first().unwrap();
         assert_eq!(reduced_paragraph.text, "Hello World");
         assert_eq!(paragraphs.len(), 1);
