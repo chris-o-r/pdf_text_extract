@@ -2,10 +2,10 @@ use crate::models::PdfPageText;
 
 pub fn reduce_bbox_to_paragraphs(bbox: &[PdfPageText], percentile: f32) -> Vec<PdfPageText> {
     let mut result: Vec<PdfPageText> = Vec::new();
+
     let mut current_paragraph: Option<PdfPageText> = None;
 
-    // Calculate the threshold distance for grouping segments into paragraphs
-    let paragraph_threshold = calculate_paragraph_threshold(bbox, percentile);
+    let paragraph_threshold = calculate_paragraph_gap_threshold(bbox, percentile);
 
     for segment in bbox.iter().cloned() {
         if current_paragraph.is_none() {
@@ -34,10 +34,61 @@ pub fn reduce_bbox_to_paragraphs(bbox: &[PdfPageText], percentile: f32) -> Vec<P
     if let Some(paragraph) = current_paragraph {
         result.push(paragraph);
     }
+    // Calculate the threshold distance for grouping segments into paragraphs
+
+    reduce_short_paragraphs_to_parents(result, 25.0)
+}
+
+fn reduce_short_paragraphs_to_parents(
+    paragraphs: Vec<PdfPageText>,
+    length_percentile: f32,
+) -> Vec<PdfPageText> {
+    let lengths: Vec<usize> = paragraphs.iter().map(|p| p.text.len()).collect();
+    let length_threshold = calculate_paragraph_length_threshold(&lengths, length_percentile);
+
+    let mut result: Vec<PdfPageText> = Vec::new();
+
+    for paragraph in paragraphs.into_iter() {
+        let distance = paragraph.bounding_box.y - result.last().map_or(0.0, |p| p.bounding_box.y);
+        if paragraph.text.len() < length_threshold as usize && distance < 50.0 {
+            let last_paragraph = result.pop();
+
+            if let Some(mut last) = last_paragraph {
+                last = last.combine(&paragraph);
+                result.push(last);
+                continue;
+            } else {
+                result.push(paragraph);
+                continue;
+            }
+        }
+
+        result.push(paragraph);
+    }
+
     result
 }
 
-fn calculate_paragraph_threshold(bbox: &[PdfPageText], percentile: f32) -> f32 {
+fn calculate_paragraph_length_threshold(paragraphs_lengths: &[usize], percentile: f32) -> f32 {
+    let mut unique_lengths: Vec<usize> = paragraphs_lengths.to_vec();
+    unique_lengths.sort();
+    unique_lengths.dedup();
+
+    if unique_lengths.is_empty() {
+        return 0.0; // Return 0 if there are no differences to calculate
+    }
+
+    // Sort the differences to calculate percentiles
+    unique_lengths.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // Calculate the percentile index
+    let index = ((percentile / 100.0) * (unique_lengths.len() - 1) as f32).round() as usize;
+    let index = index.min(unique_lengths.len() - 1);
+
+    unique_lengths[index] as f32
+}
+
+fn calculate_paragraph_gap_threshold(bbox: &[PdfPageText], percentile: f32) -> f32 {
     let mut unique_y_axis: Vec<f32> = bbox.iter().map(|segment| segment.bounding_box.y).collect();
     unique_y_axis.sort_by(|a, b| a.partial_cmp(b).unwrap());
     unique_y_axis.dedup();
@@ -93,7 +144,7 @@ mod tests {
             },
         ];
 
-        let paragraphs = reduce_bbox_to_paragraphs(&bboxes, 85.0);
+        let paragraphs = reduce_bbox_to_paragraphs(&bboxes, 80.0);
         let reduced_paragraph = paragraphs.first().unwrap();
         assert_eq!(reduced_paragraph.text, "Hello World");
         assert_eq!(paragraphs.len(), 1);
@@ -138,7 +189,7 @@ mod tests {
             },
         ];
 
-        let threshold = calculate_paragraph_threshold(&bboxes, 1.0);
+        let threshold = calculate_paragraph_gap_threshold(&bboxes, 1.0);
         assert_eq!(threshold, 25.0);
     }
 }

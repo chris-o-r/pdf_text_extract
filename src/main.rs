@@ -175,7 +175,7 @@ fn create_debug_output(
             .collect::<Vec<PdfPageText>>();
         let paragraphs = lib::chunker::reduce_bbox_to_paragraphs(&page_infos, percentile);
 
-        for page_info in paragraphs.iter() {
+        for (index, page_info) in paragraphs.iter().enumerate() {
             let bbox = &page_info.bounding_box;
 
             // Scale to image coordinates
@@ -184,8 +184,13 @@ fn create_debug_output(
             let w = (bbox.width * scale) as u32;
             let h = (bbox.height * scale) as u32;
 
+            let mut color = image::Rgba([255, 0, 0, 255]);
+            if index % 2 == 0 {
+                color = image::Rgba([0, 255, 0, 255]);
+            }
+
             // Bounds check before drawing
-            image = lib::image_utils::draw_rects(&image, &[(x, y, w, h)], false).unwrap();
+            image = lib::image_utils::draw_rects(&image, &[(x, y, w, h)], color, false).unwrap();
         }
 
         final_images.push(image);
